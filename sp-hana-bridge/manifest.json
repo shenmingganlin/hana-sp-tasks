@@ -1,0 +1,13 @@
+{
+  "id": "hana-sp-bridge",
+  "name": "Hana 任务台桥接",
+  "manifestVersion": 1,
+  "version": "0.6.0",
+  "minSupVersion": "19.3.1",
+  "description": "基于 SP 公开 API 的 Hana 扩展：连接本机 127.0.0.1:3877，管理项目、标签、任务结构、已有计数器、工作上下文、链接附件、应用内快捷键和常用偏好，提交固定界面命令并修复历史完成状态。明确确认后可删除历史或级联删除项目。无需 Node 权限。",
+  "hooks": [],
+  "permissions": ["http", "deleteProject"],
+  "allowedHosts": ["127.0.0.1"],
+  "iFrame": false,
+  "isSkipMenuEntry": true
+}

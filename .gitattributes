@@ -1,0 +1,5 @@
+* text=auto eol=lf
+*.zip binary
+*.png binary
+# 扩展 ZIP 内的 README 以 CRLF 打包；保持一致，构建结果才与 sp-tasks/assets/companion/ 中的副本逐字节相同
+sp-hana-bridge/README.md text eol=crlf

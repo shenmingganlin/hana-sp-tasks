@@ -1,0 +1,9 @@
+{
+  "id": "hana-sp-bridge",
+  "name": "Hana 任务台桥接",
+  "version": "0.6.0",
+  "minSpVersion": "19.3.1",
+  "protocolVersion": 1,
+  "size": 38589,
+  "sha256": "66222317b7ac8f0164a754c4ad23cb11561d653351e50dc0f64b72e3b89eaeae"
+}

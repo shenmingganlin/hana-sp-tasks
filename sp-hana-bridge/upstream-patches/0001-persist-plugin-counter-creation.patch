@@ -1,0 +1,23 @@
+--- a/src/app/plugins/plugin-bridge.service.ts
++++ b/src/app/plugins/plugin-bridge.service.ts
+@@ -121,10 +121,10 @@
+ } from '../features/simple-counter/simple-counter.model';
+ import { EMPTY_SIMPLE_COUNTER } from '../features/simple-counter/simple-counter.const';
+ import {
++  addSimpleCounter,
+   deleteSimpleCounter,
+   toggleSimpleCounterCounter,
+   updateSimpleCounter,
+-  upsertSimpleCounter,
+ } from '../features/simple-counter/store/simple-counter.actions';
+ import { getDbDateStr } from '../util/get-db-date-str';
+ import { DataInitService } from '../core/data-init/data-init.service';
+@@ -2185,7 +2185,7 @@
+     } else {
+       // Create new counter with all mandatory fields
+       this._store.dispatch(
+-        upsertSimpleCounter({
++        addSimpleCounter({
+           simpleCounter: {
+             ...EMPTY_SIMPLE_COUNTER,
+             id,

@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="400" viewBox="0 0 640 400">
+  <rect width="640" height="400" rx="24" fill="#f3f1eb"/>
+  <rect x="64" y="58" width="512" height="284" rx="18" fill="#ffffff" stroke="#d6ddd8" stroke-width="2"/>
+  <path d="M244 96h106l48 48v140H244z" fill="#e8f1eb" stroke="#35634b" stroke-width="5" stroke-linejoin="round"/>
+  <path d="M350 96v48h48M320 176v66m-24-24 24 24 24-24" fill="none" stroke="#35634b" stroke-width="6" stroke-linecap="round" stroke-linejoin="round"/>
+  <text x="320" y="317" text-anchor="middle" fill="#233d2e" font-family="Georgia,serif" font-size="25">SP EXTENSION</text>
+</svg>
