@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "sp-tasks",
   "name": "任务台",
-  "version": "0.11.3",
+  "version": "0.11.4",
   "description": "把 Super Productivity 接进对话：管理任务、排期、工时、重复规则、笔记和习惯；内置扩展管理项目、标签、结构、计数器、工作上下文、链接附件、应用内快捷键、界面命令和常用偏好。",
   "entry": "index.js",
   "icon": "assets/icon.svg",
@@ -14,7 +14,8 @@
     "app/runtime.execute",
     "app/runtime.native",
     "app/runtime.network",
-    "app/ui.clipboard-write"
+    "app/ui.clipboard-write",
+    "app/ui.open-external"
   ],
   "network": {
     "allowedHosts": ["127.0.0.1", "localhost"],

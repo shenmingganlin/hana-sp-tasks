@@ -36,11 +36,11 @@ const setupReport = (overrides = {}) => ({
   ...overrides,
 });
 
-async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport()), clipboard = async () => ({ written: true }), pick = async () => ({ resources: [{ kind: "local-file", path: "X:\\picked-folder", isDirectory: true }] }) } = {}) {
+async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport()), clipboard = async () => ({ written: true }), external = async () => ({ opened: true }), pick = async () => ({ resources: [{ kind: "local-file", path: "X:\\picked-folder", isDirectory: true }] }) } = {}) {
   let finished;
   const idle = new Promise((resolve) => { finished = resolve; });
   const settled = new Set();
-  const downloads = [], blobs = [], revoked = [], clipboardWrites = [], picks = [], events = {};
+  const downloads = [], blobs = [], revoked = [], clipboardWrites = [], externalOpens = [], picks = [], events = {};
   class Element {
     children = [];
     dataset = {};
@@ -91,6 +91,7 @@ async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport())
       ready: async () => {},
       api: { fetch: async (path, init) => { calls.push({ path, init }); return path === "/bridge/setup" ? setupFetch(path, init) : fetchImpl(path, init); } },
       clipboard: { writeText: async (value) => { clipboardWrites.push(value); return clipboard(value); } },
+      external: { open: async (url) => { externalOpens.push(url); return external(url); } },
       resources: {
         pick: async (...args) => { picks.push(args); return pick(...args); },
         saveFile: async () => { assert.fail("Hana forbids resource.saveFile in the settings slot"); },
@@ -101,7 +102,7 @@ async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport())
   vm.runInContext(source.replace(/^import .* from "\.\/sdk\.js";\r?\n/, ""), context, { filename: "settings.js" });
   await idle;
   return {
-    elements, calls, downloads, blobs, revoked, clipboardWrites, picks, events, body,
+    elements, calls, downloads, blobs, revoked, clipboardWrites, externalOpens, picks, events, body,
     save: () => vm.runInContext("save()", context),
     useAutomaticToken: () => vm.runInContext("useAutomaticToken()", context),
     bridgeAction: (action) => vm.runInContext(`bridgeAction(${JSON.stringify(action)})`, context),
@@ -109,6 +110,8 @@ async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport())
     clearPairingCode: () => vm.runInContext("clearPairingCode()", context),
     exportPlugin: () => vm.runInContext("exportPlugin()", context),
     copyPluginPath: () => vm.runInContext("copyPluginPath()", context),
+    openDesktopCards: () => vm.runInContext("openDesktopCards()", context),
+    copyDesktopCardsLink: () => vm.runInContext("copyDesktopCardsLink()", context),
   };
 }
 
@@ -226,6 +229,7 @@ test("扩展包保存不再占用卡片中心，设置页保留目录选择与�
   const manifest = JSON.parse(await readFile(new URL("../../sp-tasks/manifest.json", import.meta.url), "utf8"));
   assert.equal(manifest.contributes.cards, undefined, "No app card is contributed");
   assert.equal(manifest.capabilities.filter((capability) => capability === "app/resources.write").length, 1);
+  assert.equal(manifest.capabilities.filter((capability) => capability === "app/ui.open-external").length, 1);
   assert.match(html, /id="bridge-download"/);
   assert.match(html, /id="bridge-copy-path"/);
   assert.match(html, /app\/resources\.write/);
@@ -261,6 +265,47 @@ test("刷新后开关跟着真实设置走，不只改状态文字", async () =>
   const off = await openPage(desktop(false));
   assert.equal(off.elements.get("follow-desktop-theme").checked, false);
   assert.match(off.elements.get("desktop-theme-status").textContent, /没有跟随/);
+});
+
+const DESKTOP_CARDS_URL = "https://github.com/shenmingganlin/sp-desktop-cards/releases/latest";
+
+test("设置页推荐 SP 桌面卡片，下载交给宿主外部打开", async () => {
+  assert.match(html, /id="desktop-cards-recommend"/);
+  assert.match(html, /id="download-desktop-cards"/);
+  assert.match(html, /id="copy-desktop-cards-link"/);
+  const page = await openPage(healthyDiagnosis);
+  await page.openDesktopCards();
+  assert.deepEqual(page.externalOpens, [DESKTOP_CARDS_URL]);
+  assert.match(page.elements.get("desktop-cards-status").textContent, /已在浏览器打开下载页/);
+  assert.equal(page.elements.get("download-desktop-cards").disabled, false);
+  assert.equal(page.elements.get("copy-desktop-cards-link").disabled, false);
+});
+
+test("外部打开未确认时退回复制链接，不把设置页导航走", async () => {
+  const page = await openPage(healthyDiagnosis, { external: async () => ({ opened: false }) });
+  await page.openDesktopCards();
+  assert.deepEqual(page.externalOpens, [DESKTOP_CARDS_URL]);
+  assert.deepEqual(page.clipboardWrites, [DESKTOP_CARDS_URL]);
+  assert.match(page.elements.get("desktop-cards-status").textContent, /链接已复制/);
+});
+
+test("复制下载链接只写剪贴板，不打开窗口", async () => {
+  const page = await openPage(healthyDiagnosis);
+  await page.copyDesktopCardsLink();
+  assert.deepEqual(page.clipboardWrites, [DESKTOP_CARDS_URL]);
+  assert.deepEqual(page.externalOpens, []);
+  assert.match(page.elements.get("desktop-cards-status").textContent, /下载链接已复制/);
+});
+
+test("外部打开和剪贴板都被拒绝时把地址显示出来", async () => {
+  const page = await openPage(healthyDiagnosis, {
+    external: async () => { throw new Error("denied"); },
+    clipboard: async () => ({ written: false }),
+  });
+  await page.openDesktopCards();
+  const status = page.elements.get("desktop-cards-status");
+  assert.match(status.textContent, /github\.com\/shenmingganlin\/sp-desktop-cards/);
+  assert.equal(status.dataset.fault, "true");
 });
 
 test("动态能力按REST检测和扩展连接分别标注，不依赖固定工具数量", async () => {

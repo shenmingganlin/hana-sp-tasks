@@ -37,6 +37,11 @@ let restConnected = null;
 const followDesktop = $("follow-desktop-theme");
 const desktopStatus = $("desktop-theme-status");
 let desktopBusy = false;
+const DESKTOP_CARDS_URL = "https://github.com/shenmingganlin/sp-desktop-cards/releases/latest";
+const downloadDesktopCards = $("download-desktop-cards");
+const copyDesktopCardsButton = $("copy-desktop-cards-link");
+const desktopCardsStatus = $("desktop-cards-status");
+let desktopCardsBusy = false;
 
 let busy = false;
 
@@ -557,7 +562,57 @@ async function copyPluginPath() {
   }
 }
 
+function showDesktopCardsStatus(text, fault = false) {
+  desktopCardsStatus.dataset.fault = String(fault);
+  desktopCardsStatus.textContent = text;
+}
+
+async function copyDesktopCardsUrl(message) {
+  try {
+    const result = await hana.clipboard.writeText(DESKTOP_CARDS_URL);
+    if (result?.written !== true) throw new Error("Clipboard write was not confirmed");
+    showDesktopCardsStatus(message);
+    return true;
+  } catch {
+    showDesktopCardsStatus(`没能自动复制，请手动访问：${DESKTOP_CARDS_URL}`, true);
+    return false;
+  }
+}
+
+async function openDesktopCards() {
+  if (desktopCardsBusy) return;
+  desktopCardsBusy = true;
+  downloadDesktopCards.disabled = true;
+  copyDesktopCardsButton.disabled = true;
+  showDesktopCardsStatus("正在打开下载页…");
+  try {
+    const result = await hana.external.open(DESKTOP_CARDS_URL);
+    if (result?.opened !== true) throw new Error("Host did not confirm opening");
+    showDesktopCardsStatus("已在浏览器打开下载页。");
+  } catch {
+    await copyDesktopCardsUrl("没能直接打开，链接已复制，粘到浏览器即可下载。");
+  } finally {
+    desktopCardsBusy = false;
+    downloadDesktopCards.disabled = false;
+    copyDesktopCardsButton.disabled = false;
+  }
+}
+
+async function copyDesktopCardsLink() {
+  if (desktopCardsBusy) return;
+  desktopCardsBusy = true;
+  copyDesktopCardsButton.disabled = true;
+  try {
+    await copyDesktopCardsUrl("下载链接已复制。");
+  } finally {
+    desktopCardsBusy = false;
+    copyDesktopCardsButton.disabled = false;
+  }
+}
+
 followDesktop.addEventListener("change", () => { void saveDesktopTheme(); });
+downloadDesktopCards.addEventListener("click", () => { void openDesktopCards(); });
+copyDesktopCardsButton.addEventListener("click", () => { void copyDesktopCardsLink(); });
 $("bridge-refresh").addEventListener("click", () => { void bridgeAction("status"); });
 $("bridge-pair").addEventListener("click", () => { void bridgeAction("pair"); });
 $("bridge-disable").addEventListener("click", () => { void bridgeAction("disable"); });

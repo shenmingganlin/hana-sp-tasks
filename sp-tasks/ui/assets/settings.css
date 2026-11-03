@@ -412,6 +412,165 @@ code {
 .capability-state[data-ready="true"] { color: var(--ok); }
 .capability-description { grid-column: 1 / -1; font-size: 0.88em; }
 
+/* 桌面卡片推荐 */
+.card-recommend {
+  position: relative;
+  display: grid;
+  grid-template-columns: minmax(0, 1.15fr) minmax(0, 0.85fr);
+  gap: 24px;
+  align-items: center;
+  margin-top: 14px;
+  padding: 24px;
+  overflow: hidden;
+}
+
+.card-recommend::after {
+  content: "";
+  position: absolute;
+  top: -150px;
+  right: -110px;
+  width: 300px;
+  height: 300px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--accent, currentColor) 9%, transparent);
+  pointer-events: none;
+}
+
+.recommend-copy { position: relative; display: grid; gap: 12px; }
+.recommend-copy h2 { font-size: 1.18rem; }
+.recommend-copy .hint { max-width: 56ch; }
+
+.feature-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 0;
+  list-style: none;
+}
+
+.feature-chips li {
+  padding: 3px 9px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  color: var(--muted);
+  font-size: 0.84em;
+  white-space: nowrap;
+}
+
+.recommend-preview {
+  position: relative;
+  display: grid;
+  place-items: center;
+  min-height: 216px;
+  padding: 20px 14px;
+  border-radius: 16px;
+  background: linear-gradient(145deg,
+    color-mix(in srgb, var(--accent, currentColor) 15%, var(--bg, Canvas)),
+    color-mix(in srgb, var(--text, CanvasText) 6%, var(--bg, Canvas)));
+  box-shadow: inset 0 0 0 1px var(--line-soft);
+  overflow: hidden;
+}
+
+.recommend-preview::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: radial-gradient(color-mix(in srgb, var(--text, CanvasText) 12%, transparent) 1px, transparent 1px);
+  background-size: 14px 14px;
+  opacity: 0.35;
+  pointer-events: none;
+}
+
+.mini-desktop {
+  position: relative;
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  transform: rotate(-1.5deg);
+}
+
+.mini-card {
+  display: grid;
+  gap: 7px;
+  width: 118px;
+  padding: 10px;
+  border-radius: 10px;
+  background: var(--bg, Canvas);
+  box-shadow: 0 10px 24px color-mix(in srgb, var(--text, CanvasText) 12%, transparent),
+              inset 0 0 0 1px var(--line-soft);
+}
+
+.mini-focus {
+  width: 104px;
+  margin-top: 16px;
+  transform: rotate(1.8deg);
+}
+
+.mini-head { display: flex; align-items: center; justify-content: space-between; }
+.mini-title { font-size: 0.68rem; font-weight: 650; }
+
+.mini-count {
+  display: grid;
+  place-items: center;
+  min-width: 15px;
+  height: 15px;
+  padding: 0 4px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--accent, currentColor) 14%, transparent);
+  color: var(--accent, currentColor);
+  font-size: 0.6rem;
+  font-weight: 650;
+}
+
+.mini-row { display: flex; align-items: center; gap: 6px; }
+.mini-check {
+  flex: none;
+  width: 7px;
+  height: 7px;
+  border-radius: 2px;
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.mini-row.done .mini-check { background: var(--ok); box-shadow: none; }
+.mini-line {
+  display: block;
+  flex: 1;
+  height: 5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text, CanvasText) 12%, transparent);
+}
+.mini-line.short { flex: 0 0 58%; }
+.mini-row.done .mini-line { opacity: 0.45; }
+
+.mini-live {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--fault);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--fault) 14%, transparent);
+}
+
+.mini-time {
+  font-family: var(--font-mono, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 1.05rem;
+  font-weight: 650;
+  letter-spacing: 0.02em;
+}
+
+.mini-bar {
+  height: 5px;
+  border-radius: 99px;
+  background: color-mix(in srgb, var(--text, CanvasText) 10%, transparent);
+  overflow: hidden;
+}
+.mini-bar span {
+  display: block;
+  width: 62%;
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent, currentColor);
+}
+
 [hidden] { display: none !important; }
 
 ::selection {
@@ -423,6 +582,8 @@ code {
   .tiles { grid-template-columns: minmax(0, 1fr); }
   .layout { flex-direction: column; }
   .column { width: 100%; }
+  .card-recommend { grid-template-columns: minmax(0, 1fr); gap: 18px; }
+  .recommend-preview { min-height: 190px; }
 }
 
 @media (max-width: 480px) {
@@ -430,6 +591,9 @@ code {
   .hero { align-items: flex-start; }
   .tile-head { flex-wrap: wrap; }
   .capability { grid-template-columns: minmax(0, 1fr); }
+  .card-recommend { padding: 18px 16px; }
+  .mini-card { width: 106px; }
+  .mini-focus { width: 94px; }
 }
 
 @media (prefers-reduced-motion: reduce) {
