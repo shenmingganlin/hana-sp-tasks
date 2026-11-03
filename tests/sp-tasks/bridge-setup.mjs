@@ -3,7 +3,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { createHash } from "node:crypto";
 import { deflateRawSync } from "node:zlib";
-import { createBridgeSetup, readBundledInfo, readBundledPlugin, registerBridgeSetupRoutes } from "../../sp-tasks/lib/bridge-setup.js";
+import path from "node:path";
+import { createBridgeSetup, readBundledInfo, readBundledPlugin, registerBridgeSetupRoutes, writeBundledPlugin } from "../../sp-tasks/lib/bridge-setup.js";
 import { BUNDLED_PLUGIN_VERSION, RECOMMENDED_PLUGIN_VERSION, RUNTIME_PERMISSIONS } from "../../sp-tasks/lib/capabilities.js";
 import { validateCompanionZip } from "../../sp-tasks/scripts/companion-zip.mjs";
 
@@ -146,6 +147,34 @@ test("download serves byte-for-byte ZIP data with attachment and non-cache heade
   assert.equal(response.headers.get("X-Content-Type-Options"), "nosniff");
   assert.deepEqual(Buffer.from(await response.arrayBuffer()), f.state.bytes);
   assert.equal(setupCalls, 0);
+});
+
+test("export writes the verified ZIP into a user-picked absolute directory", async (t) => {
+  const f = fixture();
+  const writes = [];
+  const sdk = { resources: { write: async (ref, bytes) => { writes.push([ref, Buffer.from(bytes)]); } } };
+  const dir = path.join(path.parse(process.cwd()).root, "fixture-picked");
+  const result = await writeBundledPlugin({ sdk, dir, loadPlugin: f.load });
+  assert.equal(result.path, path.join(dir, "hana-sp-bridge.zip"));
+  assert.equal(result.fileName, "hana-sp-bridge.zip");
+  assert.equal(result.size, f.state.bytes.length);
+  assert.equal(writes.length, 1);
+  assert.deepEqual(writes[0], [{ kind: "local-file", path: result.path }, f.state.bytes]);
+
+  for (const bad of ["", "relative\\folder", `C:\\bad\0dir`, null]) {
+    await t.test(`rejects unsafe directory ${JSON.stringify(bad)}`, async () => {
+      const before = writes.length;
+      await assert.rejects(writeBundledPlugin({ sdk, dir: bad, loadPlugin: f.load }), { code: "EXPORT_DIR_INVALID" });
+      assert.equal(writes.length, before);
+    });
+  }
+
+  await t.test("a bad bundle or write failure never reports success", async () => {
+    const before = writes.length;
+    await assert.rejects(writeBundledPlugin({ sdk, dir, loadPlugin: () => { throw new Error("bad bundle"); } }));
+    assert.equal(writes.length, before);
+    await assert.rejects(writeBundledPlugin({ sdk: { resources: { write: async () => { throw new Error("EACCES"); } } }, dir, loadPlugin: f.load }), /EACCES/);
+  });
 });
 
 test("async and synchronous status failures still expose REST capabilities and a valid plugin download", async (t) => {

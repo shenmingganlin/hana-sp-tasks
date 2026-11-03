@@ -1,5 +1,6 @@
 import { readFile } from "node:fs/promises";
 import { createHash } from "node:crypto";
+import path from "node:path";
 import { bridgeCompatibility, capabilityCatalog, BUNDLED_PLUGIN_VERSION, RECOMMENDED_PLUGIN_VERSION, RUNTIME_PERMISSIONS } from "./capabilities.js";
 
 const PACKAGE_ROOT = new URL("../assets/companion/", import.meta.url);
@@ -35,6 +36,17 @@ export async function readBundledPlugin({ read = readFile, root = PACKAGE_ROOT }
     throw new Error("The bundled SP extension failed its package integrity check.");
   }
   return { bytes, plugin };
+}
+
+/** 设置页选中文件夹后，把校验过的 ZIP 写到 <dir>/hana-sp-bridge.zip。 */
+export async function writeBundledPlugin({ sdk, dir, loadPlugin = readBundledPlugin, pathApi = path }) {
+  if (typeof dir !== "string" || !dir || dir.includes("\0") || !pathApi.isAbsolute(dir)) {
+    throw Object.assign(new Error("保存位置无效，请重新选择文件夹。"), { code: "EXPORT_DIR_INVALID" });
+  }
+  const { bytes, plugin } = await loadPlugin();
+  const target = pathApi.join(dir, plugin.fileName);
+  await sdk.resources.write({ kind: "local-file", path: target }, bytes);
+  return { path: target, fileName: plugin.fileName, size: bytes.length, sha256: plugin.sha256 };
 }
 
 function safeStatus(value) {

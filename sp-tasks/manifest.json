@@ -2,7 +2,7 @@
   "manifestVersion": 2,
   "id": "sp-tasks",
   "name": "任务台",
-  "version": "0.10.2",
+  "version": "0.11.3",
   "description": "把 Super Productivity 接进对话：管理任务、排期、工时、重复规则、笔记和习惯；内置扩展管理项目、标签、结构、计数器、工作上下文、链接附件、应用内快捷键、界面命令和常用偏好。",
   "entry": "index.js",
   "icon": "assets/icon.svg",
@@ -24,15 +24,6 @@
     "maxResponseBytes": 8388608
   },
   "contributes": {
-    "cards": [
-      {
-        "id": "companion-download",
-        "title": "SP 扩展安装包",
-        "description": "保存任务台内置的 SP 扩展 ZIP。只在用户点击保存后请求 Hana 文件保存对话框，不安装插件或修改 SP 数据。",
-        "face": { "image": "assets/companion-cover.svg" },
-        "route": "/companion-download.html"
-      }
-    ],
     "settings": {
       "title": "任务台",
       "ui": {
@@ -59,6 +50,12 @@
             "title": "默认项目 ID",
             "description": "新建任务未指定项目时落到这里。留空则进 SP 收件箱。",
             "default": ""
+          },
+          "followDesktopTheme": {
+            "type": "boolean",
+            "title": "桌面卡片跟随 Hana 主题",
+            "description": "让本机的「SP 桌面卡片」跟着 Hana 当前主题换皮肤。只对装了桌面卡片的电脑有效。",
+            "default": false
           }
         }
       }

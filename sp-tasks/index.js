@@ -22,7 +22,8 @@ import { registerUiControlTools, UI_CONTROL_CAPABILITIES } from "./lib/ui-contro
 import { registerAttachmentTools, ATTACHMENT_CAPABILITIES } from "./lib/attachments-tools.js";
 import { registerKeyboardTools, KEYBOARD_CAPABILITIES } from "./lib/keyboard-tools.js";
 import { createBridgeClient } from "./lib/bridge-client.js";
-import { createBridgeSetup, registerBridgeSetupRoutes } from "./lib/bridge-setup.js";
+import { createBridgeSetup, registerBridgeSetupRoutes, writeBundledPlugin } from "./lib/bridge-setup.js";
+import * as desktopTheme from "./lib/desktop-theme.js";
 import { registerCapabilityTool } from "./lib/capabilities.js";
 import { registerAppTool } from "./lib/tool-registration.js";
 import { createTaskManager } from "./lib/archive-management.js";
@@ -586,6 +587,18 @@ export default defineApp(async (sdk) => {
         try { return c.json({ ok: true, bridge: await bridge.disable() }); }
         catch (error) { return c.json({ ok: false, error: String(error?.message || "无法断开配套插件。") }, 500); }
       });
+      // 设置面不能调 saveFile；由用户在设置里选文件夹，后台把校验过的 ZIP 写进去。
+      app.post("/bridge/export", async (c) => {
+        let body;
+        try { body = await c.req.json(); }
+        catch { return c.json({ ok: false, error: "请求体不是 JSON" }, 400); }
+        try {
+          return c.json({ ok: true, ...await writeBundledPlugin({ sdk, dir: body?.dir }) });
+        } catch (error) {
+          if (error?.code === "EXPORT_DIR_INVALID") return c.json({ ok: false, error: error.message }, 400);
+          return c.json({ ok: false, error: `写不了扩展包：${String(error?.message ?? error)}` }, 500);
+        }
+      });
       app.get("/diagnose", async (c) => {
         try {
           const cfg = await readConfig(sdk);
@@ -648,6 +661,34 @@ export default defineApp(async (sdk) => {
           invalidateNotice();
         }
       });
+
+      // 桌面卡片皮肤：小窗只认 %APPDATA%\SP 桌面卡片\theme.json，我们负责跟着 Hana 主题写它。
+      app.get("/desktop-theme", async (c) => {
+        try {
+          const all = await sdk.config.getAll();
+          const state = await desktopTheme.status(sdk, all?.followDesktopTheme === true);
+          return c.json({ ok: true, ...state });
+        } catch (error) {
+          return c.json({ ok: false, error: String(error?.message ?? error) }, 500);
+        }
+      });
+
+      app.post("/desktop-theme", async (c) => {
+        let body;
+        try {
+          body = await c.req.json();
+        } catch {
+          return c.json({ ok: false, error: "请求体不是 JSON" }, 400);
+        }
+        if (typeof body?.follow !== "boolean") return c.json({ ok: false, error: "follow 必须是布尔值" }, 400);
+        try {
+          await sdk.config.set("followDesktopTheme", body.follow);
+          const state = await desktopTheme.sync(sdk, body.follow);
+          return c.json({ ok: true, ...state });
+        } catch (error) {
+          return c.json({ ok: false, error: String(error?.message ?? error) }, 500);
+        }
+      });
     });
   } catch (error) {
     await sdk.logger.warn(`sp-tasks: diagnose route unavailable: ${error?.message ?? error}`);
@@ -658,4 +699,6 @@ export default defineApp(async (sdk) => {
     try { await sdk.logger.warn(`sp-tasks: companion bridge unavailable (${error?.code || "BRIDGE_ERROR"})`); }
     catch { /* Optional bridge diagnostics must not break REST tools. */ }
   });
+  // 桌面卡片皮肤跟随：只在 Windows 上跑；开关在设置页，每 5 秒看一眼 Hana 主题。
+  desktopTheme.startDesktopFollow(sdk);
 });

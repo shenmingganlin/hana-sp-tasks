@@ -26,12 +26,17 @@ const bridgeCodeField = $("bridge-code-field");
 const bridgeButtons = [$("bridge-refresh"), $("bridge-pair"), $("bridge-disable")];
 const bridgeDownload = $("bridge-download");
 const bridgeDownloadStatus = $("bridge-download-status");
+const bridgeCopyPath = $("bridge-copy-path");
 const bridgeCopyStatus = $("bridge-copy-status");
 let bridgeBusy = false;
 let bridgeSetup = null;
-let downloadBusy = false;
+let exportBusy = false;
+let savedPluginPath = "";
 let copyBusy = false;
 let restConnected = null;
+const followDesktop = $("follow-desktop-theme");
+const desktopStatus = $("desktop-theme-status");
+let desktopBusy = false;
 
 let busy = false;
 
@@ -54,6 +59,56 @@ async function api(path, init) {
     throw new Error(typeof body?.error === "string" ? body.error : "诊断响应格式不正确：需要 ok、verdict 和 steps。");
   }
   return body;
+}
+
+function renderDesktopTheme(state) {
+  // 勾选状态必须跟着真实设置走：页面刷新后只看状态文字、开关却回弹，会让人以为没保存。
+  followDesktop.checked = state.follow === true;
+  desktopStatus.dataset.fault = String(!!state.error);
+  if (!state.found) {
+    desktopStatus.textContent = "没找到本机的「SP 桌面卡片」。装好后打开一次，这里就能认出来。";
+    return;
+  }
+  if (state.error) {
+    desktopStatus.textContent = state.error;
+    return;
+  }
+  if (!state.follow) {
+    desktopStatus.textContent = "没有跟随，桌面卡片用自己的皮肤。";
+    return;
+  }
+  const skin = state.skinName || state.skin || "当前皮肤";
+  desktopStatus.textContent = `正在跟随 Hana 的「${skin}」主题。`;
+}
+
+async function loadDesktopTheme() {
+  try {
+    renderDesktopTheme(await api("/desktop-theme"));
+  } catch (error) {
+    desktopStatus.dataset.fault = "true";
+    desktopStatus.textContent = `读取失败：${error.message}`;
+  }
+}
+
+async function saveDesktopTheme() {
+  if (desktopBusy) return;
+  desktopBusy = true;
+  followDesktop.disabled = true;
+  try {
+    const state = await api("/desktop-theme", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ follow: followDesktop.checked }),
+    });
+    renderDesktopTheme(state);
+  } catch (error) {
+    followDesktop.checked = !followDesktop.checked;
+    desktopStatus.dataset.fault = "true";
+    desktopStatus.textContent = `没保存成功：${error.message}`;
+  } finally {
+    desktopBusy = false;
+    followDesktop.disabled = false;
+  }
 }
 
 function element(tag, className, text) {
@@ -363,7 +418,8 @@ function renderBridgeSetup() {
 function updateBridgeButtons() {
   for (const button of bridgeButtons) button.disabled = bridgeBusy;
   $("bridge-pair").disabled = bridgeBusy || bridgeSetup?.requirements.nativeAvailable === false && !bridgeSetup.bridge.error;
-  bridgeDownload.disabled = bridgeBusy || downloadBusy || bridgeSetup?.plugin.available !== true;
+  bridgeDownload.disabled = bridgeBusy || exportBusy || bridgeSetup?.plugin.available !== true;
+  if (bridgeCopyPath) bridgeCopyPath.disabled = exportBusy || !savedPluginPath;
 }
 
 function clearPairingCode() {
@@ -445,34 +501,68 @@ async function copyPairingCode() {
   }
 }
 
-async function downloadPlugin() {
-  if (downloadBusy || bridgeBusy || bridgeSetup?.plugin.available !== true) return;
-  downloadBusy = true;
+function showExportResult(text, fault = false) {
+  bridgeDownloadStatus.dataset.fault = String(fault);
+  bridgeDownloadStatus.textContent = text;
+}
+
+async function exportPlugin() {
+  if (exportBusy || bridgeBusy || bridgeSetup?.plugin.available !== true) return;
+  exportBusy = true;
+  savedPluginPath = "";
+  if (bridgeCopyPath) bridgeCopyPath.hidden = true;
   updateBridgeButtons();
-  bridgeDownloadStatus.textContent = "正在打开保存卡片…";
-  bridgeDownloadStatus.dataset.fault = "false";
+  showExportResult("请在 Hana 的文件夹选择框里选一个保存位置…");
   try {
-    // Settings cannot download or call saveFile. Open our declared card instead;
-    // only its explicit save button asks the host to choose and write a file.
-    const result = await hana.cards.open("companion-download");
-    if (!result || typeof result.cardInstanceId !== "string" || !result.cardInstanceId.trim() ||
-        typeof result.existing !== "boolean" || typeof result.detached !== "boolean") {
-      throw new Error("Unconfirmed card open");
+    // Hana 只允许卡片或预览面调用 saveFile，设置面没有写文件的对话框。
+    // 这里让用户选文件夹，再由应用后台把校验过的 ZIP 写进去。
+    const picked = await hana.resources.pick({ mode: "directory" });
+    const dir = picked?.resources?.[0];
+    if (!dir || dir.kind !== "local-file" || typeof dir.path !== "string" || !dir.path) {
+      showExportResult("已取消，没有保存扩展包。");
+      return;
     }
-    bridgeDownloadStatus.textContent = "已打开「SP 扩展安装包」卡片，还没有保存文件，请在卡片里点保存。设置窗口挡住时先关闭设置。";
-  } catch {
-    bridgeDownloadStatus.dataset.fault = "true";
-    bridgeDownloadStatus.textContent = "没能确认卡片已打开，也没有保存文件。可以关闭设置，从 Hana 卡片中心打开任务台的「SP 扩展安装包」。";
+    const result = await api("/bridge/export", {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ dir: dir.path }),
+    });
+    savedPluginPath = typeof result?.path === "string" ? result.path : "";
+    showExportResult(savedPluginPath ? `已保存到 ${savedPluginPath}` : "已保存扩展包。");
+    if (bridgeCopyPath) bridgeCopyPath.hidden = !savedPluginPath;
+  } catch (error) {
+    const denied = error?.code === "CAPABILITY_DENIED" || error?.code === "SAVE_FILE_PERMISSION_DENIED";
+    showExportResult(denied
+      ? "没有保存：Hana 还没允许任务台写文件。请在应用权限里允许 app/resources.write 后再试。"
+      : `没有保存：${error?.message || "写入扩展包失败，请换一个文件夹再试。"}`, true);
   } finally {
-    downloadBusy = false;
+    exportBusy = false;
     updateBridgeButtons();
   }
 }
 
+async function copyPluginPath() {
+  if (!savedPluginPath || copyBusy) return;
+  copyBusy = true;
+  bridgeCopyPath.disabled = true;
+  try {
+    const result = await hana.clipboard.writeText(savedPluginPath);
+    if (result?.written !== true) throw new Error("Clipboard write was not confirmed");
+    showExportResult(`路径已复制，去 SP「设置 → 插件」里粘贴即可：${savedPluginPath}`);
+  } catch {
+    showExportResult(`没能自动复制，请手动选中路径：${savedPluginPath}`, true);
+  } finally {
+    copyBusy = false;
+    bridgeCopyPath.disabled = false;
+  }
+}
+
+followDesktop.addEventListener("change", () => { void saveDesktopTheme(); });
 $("bridge-refresh").addEventListener("click", () => { void bridgeAction("status"); });
 $("bridge-pair").addEventListener("click", () => { void bridgeAction("pair"); });
 $("bridge-disable").addEventListener("click", () => { void bridgeAction("disable"); });
-bridgeDownload.addEventListener("click", () => { void downloadPlugin(); });
+bridgeDownload.addEventListener("click", () => { void exportPlugin(); });
+bridgeCopyPath?.addEventListener("click", () => { void copyPluginPath(); });
 $("bridge-copy").addEventListener("click", () => { void copyPairingCode(); });
 $("bridge-hide").addEventListener("click", clearPairingCode);
 globalThis.addEventListener?.("pagehide", clearPairingCode);
@@ -486,5 +576,6 @@ tokenInput.addEventListener("keydown", (event) => {
   }
 });
 
+void loadDesktopTheme();
 void runDiagnose();
 void bridgeAction("status");

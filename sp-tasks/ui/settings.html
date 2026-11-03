@@ -9,132 +9,188 @@
 </head>
 <body>
   <main class="page">
-    <p class="lede">把 Super Productivity 接进对话：任务、排期、计时、归档、重复规则、笔记和习惯。</p>
+    <header class="hero">
+      <span class="hero-mark" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="4.5" y="3.5" width="15" height="17" rx="3"></rect>
+          <path d="M8.5 9h7M8.5 12.5h7M8.5 16h4"></path>
+          <path d="M6.8 6.6l1 1 1.8-2"></path>
+        </svg>
+      </span>
+      <div class="hero-copy">
+        <h1>任务台</h1>
+        <p class="lede">把 Super Productivity 接进对话：任务、排期、计时、归档、重复规则、笔记和习惯。</p>
+      </div>
+    </header>
 
-    <section class="overview" aria-label="连接状态">
-      <div class="overview-row" id="verdict" data-state="" aria-live="polite" aria-busy="true">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="overview-name">本地接口</span>
-        <span class="overview-text" id="verdict-text">正在检测</span>
-        <button type="button" class="btn btn-ghost btn-small" id="rerun" disabled>重新检测</button>
-      </div>
-      <div class="overview-row" id="bridge-overview" data-state="">
-        <span class="dot" aria-hidden="true"></span>
-        <span class="overview-name">SP 扩展</span>
-        <span class="overview-text" id="bridge-summary">正在读取</span>
-        <button type="button" class="btn btn-ghost btn-small" id="bridge-refresh" disabled>刷新</button>
-      </div>
+    <section class="tiles" aria-label="连接状态">
+      <article class="tile" id="verdict" data-state="" aria-live="polite" aria-busy="true">
+        <div class="tile-head">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="tile-name">本地接口</span>
+          <button type="button" class="btn btn-ghost btn-small" id="rerun" disabled>重新检测</button>
+        </div>
+        <p class="tile-text" id="verdict-text">正在检测</p>
+      </article>
+      <article class="tile" id="bridge-overview" data-state="">
+        <div class="tile-head">
+          <span class="dot" aria-hidden="true"></span>
+          <span class="tile-name">SP 扩展</span>
+          <button type="button" class="btn btn-ghost btn-small" id="bridge-refresh" disabled>刷新</button>
+        </div>
+        <p class="tile-text" id="bridge-summary">正在读取</p>
+      </article>
     </section>
 
-    <section class="block">
-      <details class="fold" id="steps-fold">
-        <summary id="steps-summary">接口检测详情</summary>
-        <ol class="steps" id="steps"></ol>
-      </details>
+    <div class="layout">
+      <div class="column column-main">
+      <section class="card card-bridge" id="bridge-setup" aria-busy="true">
+        <header class="card-head">
+          <p class="eyebrow">扩展</p>
+          <h2>SP 扩展</h2>
+          <p class="hint">管理项目、标签、结构、偏好、快捷键等需要这个扩展；任务、计时和笔记只用本地接口。扩展由任务台提供，不是 SP 官方出品。</p>
+        </header>
+        <p class="status" id="bridge-status" role="status" aria-live="polite">正在读取扩展信息…</p>
+        <p class="hint" id="bridge-compatibility" hidden></p>
 
-      <div class="panel" id="manual" hidden>
-        <h2>手动设置</h2>
-        <p class="hint">自动读取失败时才需要填。地址默认 <code>http://127.0.0.1:3876</code>。</p>
-        <label class="field">
-          <span class="label">接口地址</span>
-          <input type="url" id="baseUrl" inputmode="url" spellcheck="false" placeholder="http://127.0.0.1:3876">
-        </label>
-        <label class="field">
-          <span class="label">访问令牌</span>
-          <input type="password" id="accessToken" spellcheck="false" autocomplete="off" placeholder="留空表示自动读取">
-          <span class="hint" id="token-hint">留空即可。打开 SP 的本地接口后，它会自己写一个令牌文件，这个应用会去读。</span>
-        </label>
-        <div class="row">
-          <button type="button" class="btn" id="save" disabled>保存并重新检测</button>
-          <button type="button" class="btn btn-ghost" id="use-auto-token">改用自动读取令牌</button>
+        <details class="fold" id="bridge-steps" open>
+          <summary id="bridge-steps-summary">安装与配对</summary>
+          <ol class="install-steps">
+            <li>
+              <h3>保存扩展包</h3>
+              <p class="hint" id="bridge-package-info">正在读取安装包…</p>
+              <p class="hint">按钮会打开系统的文件夹选择框，把校验过的 ZIP 写进去。需要允许任务台的 <code>app/resources.write</code>。</p>
+              <div class="row">
+                <button type="button" class="btn" id="bridge-download" disabled>选择位置保存扩展包</button>
+                <button type="button" class="btn btn-ghost" id="bridge-copy-path" hidden disabled>复制路径</button>
+              </div>
+              <p class="status" id="bridge-download-status" role="status" aria-live="polite"></p>
+            </li>
+            <li>
+              <h3>在 SP 中安装</h3>
+              <p class="hint">SP「设置 → 插件」选择保存的 <code>hana-sp-bridge.zip</code>，安装并启用。</p>
+            </li>
+            <li>
+              <h3>配对</h3>
+              <p class="hint">点击启用会在本机 <code>127.0.0.1:3877</code> 启动桥接，并显示配对码。把配对码粘贴到 SP 扩展的「配对 Hana 任务台」。</p>
+              <div class="row">
+                <button type="button" class="btn" id="bridge-pair" disabled>启用并显示配对码</button>
+              </div>
+              <div id="bridge-code-field" hidden>
+                <label class="field">
+                  <span class="label">配对码</span>
+                  <textarea id="bridge-code" rows="3" readonly spellcheck="false" autocomplete="off" aria-label="SP 扩展配对码" aria-describedby="bridge-code-help"></textarea>
+                </label>
+                <p class="hint" id="bridge-code-help">配对码是管理凭据，只粘贴到 SP 扩展，不要发进聊天或截图。</p>
+                <div class="row">
+                  <button type="button" class="btn btn-ghost" id="bridge-copy">复制</button>
+                  <button type="button" class="btn btn-ghost" id="bridge-hide">隐藏</button>
+                  <p class="status" id="bridge-copy-status" role="status" aria-live="polite"></p>
+                </div>
+              </div>
+            </li>
+          </ol>
+        </details>
+
+        <div class="row bridge-connected" id="bridge-connected-actions" hidden>
+          <button type="button" class="btn btn-ghost" id="bridge-disable" disabled>断开并停用</button>
+        </div>
+
+        <details class="fold" id="bridge-help">
+          <summary>遇到问题</summary>
+          <div class="fold-body">
+            <p class="hint" id="bridge-native-status">正在检查 Hana 托管运行接口。</p>
+            <p class="hint">需要在 Hana 的应用权限中允许：</p>
+            <ul class="permission-list" id="bridge-permissions">
+              <li><code>app/runtime.execute</code>：启动托管服务</li>
+              <li><code>app/runtime.native</code>：使用原生运行环境</li>
+              <li><code>app/runtime.network</code>：允许服务网络访问</li>
+            </ul>
+            <p class="hint" id="bridge-native-help">Windows 还需要管理员按 Hana 随附说明为当前使用者初始化 native sandbox 身份。本页无法检测，也不执行初始化。首次启动可能要一分钟。</p>
+            <p class="hint">桥接只监听本机，不向 SP 传送 Hana 令牌。停用只停止扩展命令，不改 SP 任务。</p>
+            <div id="bridge-assistant-setup">
+              <p class="hint">也可以在 Hana 新对话里说：<strong>请使用任务台安装引导，帮我完成 SP 扩展安装与连接。</strong>助手会先征求同意，再引导需要你确认的步骤。</p>
+            </div>
+          </div>
+        </details>
+      </section>
+
+      <section class="card card-connection">
+        <header class="card-head">
+          <p class="eyebrow">连接</p>
+          <h2>本地接口</h2>
+          <p class="hint">只连本机的 <code>127.0.0.1:3876</code>；地址和令牌通常不用改。</p>
+        </header>
+        <details class="fold" id="steps-fold">
+          <summary id="steps-summary">检测详情</summary>
+          <ol class="steps" id="steps"></ol>
+        </details>
+
+        <div class="panel" id="manual" hidden>
+          <h3>手动设置</h3>
+          <p class="hint">自动读取失败时才需要填。地址默认 <code>http://127.0.0.1:3876</code>。</p>
+          <label class="field">
+            <span class="label">接口地址</span>
+            <input type="url" id="baseUrl" inputmode="url" spellcheck="false" placeholder="http://127.0.0.1:3876">
+          </label>
+          <label class="field">
+            <span class="label">访问令牌</span>
+            <input type="password" id="accessToken" spellcheck="false" autocomplete="off" placeholder="留空表示自动读取">
+            <span class="hint" id="token-hint">留空即可。打开 SP 的本地接口后，它会自己写一个令牌文件，这个应用会去读。</span>
+          </label>
+          <div class="row">
+            <button type="button" class="btn" id="save" disabled>保存并重新检测</button>
+            <button type="button" class="btn btn-ghost" id="use-auto-token">改用自动读取令牌</button>
+          </div>
           <p class="status" id="save-status" role="status" aria-live="polite"></p>
         </div>
-      </div>
 
-      <div class="panel" id="install-help" hidden>
-        <h2>还没有 Super Productivity</h2>
-        <p class="hint">安装并启动一次，然后在「设置 → 杂项」打开本地 REST API。</p>
-        <a class="btn btn-link" href="https://super-productivity.com/" target="_blank" rel="noreferrer noopener">打开官网</a>
-      </div>
-    </section>
-
-    <section class="block" id="bridge-setup" aria-busy="true">
-      <h2>SP 扩展</h2>
-      <p class="hint">管理项目、标签、结构、偏好、快捷键等需要这个扩展；任务、计时和笔记只用本地接口。扩展由任务台提供，不是 SP 官方出品。</p>
-      <p class="status" id="bridge-status" role="status" aria-live="polite">正在读取扩展信息…</p>
-      <p class="hint" id="bridge-compatibility" hidden></p>
-
-      <details class="fold" id="bridge-steps" open>
-        <summary id="bridge-steps-summary">安装与配对</summary>
-        <ol class="install-steps">
-          <li>
-            <h3>保存扩展包</h3>
-            <p class="hint" id="bridge-package-info">正在读取安装包…</p>
-            <p class="hint">按钮会打开任务台的保存卡片（需允许 <code>app/resources.write</code>）。</p>
-            <div class="row">
-              <button type="button" class="btn btn-ghost" id="bridge-download" disabled>打开保存卡片</button>
-              <p class="status" id="bridge-download-status" role="status" aria-live="polite"></p>
-            </div>
-          </li>
-          <li>
-            <h3>在 SP 中安装</h3>
-            <p class="hint">SP「设置 → 插件」选择保存的 <code>hana-sp-bridge.zip</code>，安装并启用。</p>
-          </li>
-          <li>
-            <h3>配对</h3>
-            <p class="hint">点击启用会在本机 <code>127.0.0.1:3877</code> 启动桥接，并显示配对码。把配对码粘贴到 SP 扩展的「配对 Hana 任务台」。</p>
-            <div class="row">
-              <button type="button" class="btn" id="bridge-pair" disabled>启用并显示配对码</button>
-            </div>
-            <div id="bridge-code-field" hidden>
-              <label class="field">
-                <span class="label">配对码</span>
-                <textarea id="bridge-code" rows="3" readonly spellcheck="false" autocomplete="off" aria-label="SP 扩展配对码" aria-describedby="bridge-code-help"></textarea>
-              </label>
-              <p class="hint" id="bridge-code-help">配对码是管理凭据，只粘贴到 SP 扩展，不要发进聊天或截图。</p>
-              <div class="row">
-                <button type="button" class="btn btn-ghost" id="bridge-copy">复制</button>
-                <button type="button" class="btn btn-ghost" id="bridge-hide">隐藏</button>
-                <p class="status" id="bridge-copy-status" role="status" aria-live="polite"></p>
-              </div>
-            </div>
-          </li>
-        </ol>
-      </details>
-
-      <div class="row bridge-connected" id="bridge-connected-actions" hidden>
-        <button type="button" class="btn btn-ghost" id="bridge-disable" disabled>断开并停用</button>
-      </div>
-
-      <details class="fold" id="bridge-help">
-        <summary>遇到问题</summary>
-        <div class="fold-body">
-          <p class="hint" id="bridge-native-status">正在检查 Hana 托管运行接口。</p>
-          <p class="hint">需要在 Hana 的应用权限中允许：</p>
-          <ul class="permission-list" id="bridge-permissions">
-            <li><code>app/runtime.execute</code>：启动托管服务</li>
-            <li><code>app/runtime.native</code>：使用原生运行环境</li>
-            <li><code>app/runtime.network</code>：允许服务网络访问</li>
-          </ul>
-          <p class="hint" id="bridge-native-help">Windows 还需要管理员按 Hana 随附说明为当前使用者初始化 native sandbox 身份。本页无法检测，也不执行初始化。首次启动可能要一分钟。</p>
-          <p class="hint">桥接只监听本机，不向 SP 传送 Hana 令牌。停用只停止扩展命令，不改 SP 任务。</p>
-          <div id="bridge-assistant-setup">
-            <p class="hint">也可以在 Hana 新对话里说：<strong>请使用任务台安装引导，帮我完成 SP 扩展安装与连接。</strong>助手会先征求同意，再引导需要你确认的步骤。</p>
-          </div>
+        <div class="panel" id="install-help" hidden>
+          <h3>还没有 Super Productivity</h3>
+          <p class="hint">安装并启动一次，然后在「设置 → 杂项」打开本地 REST API。</p>
+          <a class="btn btn-link" href="https://super-productivity.com/" target="_blank" rel="noreferrer noopener">打开官网</a>
         </div>
-      </details>
-    </section>
+      </section>
 
-    <section class="block">
-      <details class="fold">
-        <summary id="bridge-capabilities-hint">当前能力</summary>
-        <ul class="capability-list" id="bridge-capabilities"></ul>
-      </details>
-      <details class="fold">
-        <summary>对话里怎么用</summary>
-        <p class="hint fold-body">直接说就行：「把今天没做完的安排到明天」「周三前交水费，预估半小时」「恢复上周归档的任务」「把番茄钟设为工作 25 分钟」「给这项任务加一个网页链接」。计划哪天做和最晚何时完成是两个独立字段。</p>
-      </details>
-    </section>
+      </div>
+
+      <div class="column column-side">
+        <section class="card card-theme" id="desktop-theme">
+          <header class="card-head">
+            <p class="eyebrow">外观联动</p>
+            <h2>桌面卡片</h2>
+            <p class="hint">如果装了「SP 桌面卡片」，可以让它的皮肤跟着 Hana 当前主题走。没装的话这一项不会有什么效果。</p>
+          </header>
+          <label class="switch-row">
+            <span class="switch-copy">
+              <strong>跟随 Hana 的主题</strong>
+              <small>Hana 换主题后，卡片几秒内跟着换。</small>
+            </span>
+            <span class="switch">
+              <input type="checkbox" id="follow-desktop-theme">
+              <span class="switch-track"><span class="switch-thumb"></span></span>
+            </span>
+          </label>
+          <p class="status" id="desktop-theme-status" role="status" aria-live="polite">正在检查…</p>
+        </section>
+
+        <section class="card card-more">
+          <header class="card-head">
+            <p class="eyebrow">更多</p>
+            <h2>能力与用法</h2>
+            <p class="hint">扩展连接后，这些能力会按状态自动点亮。</p>
+          </header>
+          <details class="fold">
+            <summary id="bridge-capabilities-hint">当前能力</summary>
+            <ul class="capability-list" id="bridge-capabilities"></ul>
+          </details>
+          <details class="fold">
+            <summary>对话里怎么用</summary>
+            <p class="hint fold-body">直接说就行：「把今天没做完的安排到明天」「周三前交水费，预估半小时」「恢复上周归档的任务」「把番茄钟设为工作 25 分钟」「给这项任务加一个网页链接」。计划哪天做和最晚何时完成是两个独立字段。</p>
+          </details>
+        </section>
+      </div>
+    </div>
   </main>
 </body>
 </html>

@@ -36,11 +36,11 @@ const setupReport = (overrides = {}) => ({
   ...overrides,
 });
 
-async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport()), clipboard = async () => ({ written: true }), cardOpen = async () => ({ cardInstanceId: "fixture-card", existing: false, detached: false }) } = {}) {
+async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport()), clipboard = async () => ({ written: true }), pick = async () => ({ resources: [{ kind: "local-file", path: "X:\\picked-folder", isDirectory: true }] }) } = {}) {
   let finished;
   const idle = new Promise((resolve) => { finished = resolve; });
   const settled = new Set();
-  const downloads = [], blobs = [], revoked = [], clipboardWrites = [], cardOpens = [], events = {};
+  const downloads = [], blobs = [], revoked = [], clipboardWrites = [], picks = [], events = {};
   class Element {
     children = [];
     dataset = {};
@@ -91,21 +91,24 @@ async function openPage(fetchImpl, { setupFetch = () => json(200, setupReport())
       ready: async () => {},
       api: { fetch: async (path, init) => { calls.push({ path, init }); return path === "/bridge/setup" ? setupFetch(path, init) : fetchImpl(path, init); } },
       clipboard: { writeText: async (value) => { clipboardWrites.push(value); return clipboard(value); } },
-      cards: { open: async (...args) => { cardOpens.push(args); return cardOpen(...args); } },
-      resources: { saveFile: async () => { assert.fail("Hana forbids resource.saveFile in the settings slot"); } },
+      resources: {
+        pick: async (...args) => { picks.push(args); return pick(...args); },
+        saveFile: async () => { assert.fail("Hana forbids resource.saveFile in the settings slot"); },
+      },
     }),
   });
   // 只移除 SDK import，脚本正文（包括自动检测、api 和渲染）按源码执行。
   vm.runInContext(source.replace(/^import .* from "\.\/sdk\.js";\r?\n/, ""), context, { filename: "settings.js" });
   await idle;
   return {
-    elements, calls, downloads, blobs, revoked, clipboardWrites, cardOpens, events, body,
+    elements, calls, downloads, blobs, revoked, clipboardWrites, picks, events, body,
     save: () => vm.runInContext("save()", context),
     useAutomaticToken: () => vm.runInContext("useAutomaticToken()", context),
     bridgeAction: (action) => vm.runInContext(`bridgeAction(${JSON.stringify(action)})`, context),
     copyPairingCode: () => vm.runInContext("copyPairingCode()", context),
     clearPairingCode: () => vm.runInContext("clearPairingCode()", context),
-    downloadPlugin: () => vm.runInContext("downloadPlugin()", context),
+    exportPlugin: () => vm.runInContext("exportPlugin()", context),
+    copyPluginPath: () => vm.runInContext("copyPluginPath()", context),
   };
 }
 
@@ -131,7 +134,7 @@ test("安装步骤和主按钮直接可见，排障说明和助手引导收在�
   assert.equal(help.tag, "details"); assert.doesNotMatch(help.attributes, /(?:^|\s)open(?:\s|=|$)/i, "Troubleshooting starts folded");
   assert.ok(guide.ancestors.includes(help));
   for (const id of ["bridge-download", "bridge-pair", "bridge-copy", "bridge-hide", "bridge-code"]) assert.ok(one(id).ancestors.includes(steps), `${id} belongs to the install steps`);
-  for (const id of ["bridge-refresh", "rerun"]) assert.ok(one(id).ancestors.some((node) => node.attributes.includes('class="overview"')), `${id} sits in the overview`);
+  for (const id of ["bridge-refresh", "rerun"]) assert.ok(one(id).ancestors.some((node) => node.attributes.includes('class="tiles"')), `${id} sits in the status tiles`);
   const guideNodes = nodes.filter((node) => node === guide || node.ancestors.includes(guide));
   assert.ok(guideNodes.every((node) => !["a", "button", "input", "textarea", "form", "script"].includes(node.tag)));
   assert.ok(guideNodes.every((node) => !/\bon[a-z]+\s*=/i.test(node.attributes)));
@@ -141,8 +144,8 @@ test("安装步骤和主按钮直接可见，排障说明和助手引导收在�
     assert.equal(path, "/diagnose");
     return json(200, { ok: true, verdict: "Fixture connected", steps: [] });
   });
-  assert.deepEqual(page.calls.map(({ path, init }) => ({ path, init })), [{ path: "/diagnose", init: undefined }, { path: "/bridge/setup", init: undefined }]);
-  assert.deepEqual(page.cardOpens, []); assert.deepEqual(page.clipboardWrites, []); assert.deepEqual(page.downloads, []);
+  assert.deepEqual(page.calls.map(({ path, init }) => ({ path, init })), [{ path: "/desktop-theme", init: undefined }, { path: "/diagnose", init: undefined }, { path: "/bridge/setup", init: undefined }]);
+  assert.deepEqual(page.picks, []); assert.deepEqual(page.clipboardWrites, []); assert.deepEqual(page.downloads, []);
   assert.deepEqual(page.elements.get("bridge-assistant-setup").listeners, {});
   assert.doesNotMatch(source, /hana\.(?:chat|sessions|agents|messages)\b/);
 });
@@ -158,7 +161,7 @@ test("桥接配对码只在明确点击后显示，刷新状态会清除凭据",
     }
     assert.fail(`Unexpected request ${path}`);
   }, { setupFetch: () => json(200, setupReport({ bridge: { enabled: connected, connected, running: connected, pluginVersion: connected ? "0.3.0" : null } })) });
-  assert.deepEqual(page.calls.map((call) => call.path), ["/diagnose", "/bridge/setup"]);
+  assert.deepEqual(page.calls.map((call) => call.path), ["/desktop-theme", "/diagnose", "/bridge/setup"]);
   await page.bridgeAction("pair");
   assert.equal(page.elements.get("bridge-code").value, "HANA-SP1.fixture-only");
   assert.equal(page.elements.get("bridge-code-field").hidden, false);
@@ -219,28 +222,22 @@ const healthyDiagnosis = (path) => {
   return json(200, { ok: true, verdict: "连接正常", steps: [] });
 };
 
-test("保存入口的普通卡、封面和文件写授权随同应用清单分发", async () => {
+test("扩展包保存不再占用卡片中心，设置页保留目录选择与文件写授权", async () => {
   const manifest = JSON.parse(await readFile(new URL("../../sp-tasks/manifest.json", import.meta.url), "utf8"));
-  const cards = manifest.contributes.cards.filter((card) => card.id === "companion-download");
-  assert.equal(cards.length, 1);
-  assert.equal(cards[0].route, "/companion-download.html");
-  assert.equal(cards[0].realization, undefined);
-  assert.equal(cards[0].pageOf, undefined);
-  assert.equal(cards[0].face.image, "assets/companion-cover.svg");
+  assert.equal(manifest.contributes.cards, undefined, "No app card is contributed");
   assert.equal(manifest.capabilities.filter((capability) => capability === "app/resources.write").length, 1);
-  const cardHtml = await readFile(new URL("../../sp-tasks/ui/companion-download.html", import.meta.url), "utf8");
-  const cover = await readFile(new URL("../../sp-tasks/ui/assets/companion-cover.svg", import.meta.url), "utf8");
-  assert.match(cardHtml, /companion-download[.]js/);
-  assert.match(cover, /<svg /);
-  assert.doesNotMatch(cover, /<script|<foreignObject|href=/i);
+  assert.match(html, /id="bridge-download"/);
+  assert.match(html, /id="bridge-copy-path"/);
+  assert.match(html, /app\/resources\.write/);
+  await assert.rejects(readFile(new URL("../../sp-tasks/ui/companion-download.html", import.meta.url), "utf8"), { code: "ENOENT" });
 });
 
 test("打开设置只读取安装信息与诊断，不启用服务或传递令牌", async () => {
   const page = await openPage(healthyDiagnosis);
-  assert.deepEqual(page.calls.map(({ path }) => path), ["/diagnose", "/bridge/setup"]);
+  assert.deepEqual(page.calls.map(({ path }) => path), ["/desktop-theme", "/diagnose", "/bridge/setup"]);
   assert.ok(page.calls.every(({ init }) => init === undefined));
   assert.equal(page.clipboardWrites.length, 0);
-  assert.equal(page.cardOpens.length, 0);
+  assert.equal(page.picks.length, 0);
   assert.equal(page.elements.get("bridge-code").value, "");
   assert.equal(page.elements.get("bridge-code-field").hidden, true);
   assert.match(page.elements.get("bridge-package-info").textContent, /0\.3\.0.*KB.*19\.3\.1/);
@@ -250,6 +247,20 @@ test("打开设置只读取安装信息与诊断，不启用服务或传递令�
   assert.doesNotMatch(html + source, /[CD]:[\\/]Users[\\/]|Ganlin|MyDocuments/);
   assert.match(html, /不向 SP 传送 Hana 令牌/);
   assert.match(html, /无法检测，也不执行初始化/);
+});
+
+test("刷新后开关跟着真实设置走，不只改状态文字", async () => {
+  const desktop = (follow) => (path) => {
+    if (path === "/diagnose") return healthyDiagnosis(path);
+    if (path === "/desktop-theme") return json(200, { ok: true, found: true, follow, hanaTheme: "coral", skin: "coral", skinName: "珊瑚", active: follow, error: null });
+    assert.fail(`Unexpected request ${path}`);
+  };
+  const on = await openPage(desktop(true));
+  assert.equal(on.elements.get("follow-desktop-theme").checked, true);
+  assert.match(on.elements.get("desktop-theme-status").textContent, /珊瑚/);
+  const off = await openPage(desktop(false));
+  assert.equal(off.elements.get("follow-desktop-theme").checked, false);
+  assert.match(off.elements.get("desktop-theme-status").textContent, /没有跟随/);
 });
 
 test("动态能力按REST检测和扩展连接分别标注，不依赖固定工具数量", async () => {
@@ -383,8 +394,9 @@ test("缺少随包ZIP时禁用下载，保持已知能力和诊断可读", async
   assert.equal(page.elements.get("bridge-download").disabled, true);
   assert.match(page.elements.get("bridge-package-info").textContent, /没有附带可用的扩展包.*正常更新/);
   const before = page.calls.length;
-  await page.downloadPlugin();
+  await page.exportPlugin();
   assert.equal(page.calls.length, before);
+  assert.equal(page.picks.length, 0);
   assert.equal(page.elements.get("bridge-capabilities").children.length, 3);
 });
 
@@ -465,60 +477,76 @@ test("配对成功后setup刷新失败保留刚生成的码但不误报能力可
   assert.equal(page.elements.get("bridge-capabilities").children.length, 0);
 });
 
-test("设置页只打开本应用保存卡片，不在受限slot下载或调用saveFile", async () => {
-  const page = await openPage(healthyDiagnosis);
-  await page.downloadPlugin();
-  assert.deepEqual(page.cardOpens, [["companion-download"]]);
-  assert.deepEqual(page.calls.map(({ path }) => path), ["/diagnose", "/bridge/setup"]);
+test("设置页选文件夹后由后台写扩展包，不打开卡片也不调用受限 saveFile", async () => {
+  const page = await openPage((path, init) => {
+    assert.equal(path, "/bridge/export");
+    assert.equal(init.method, "POST");
+    assert.deepEqual(JSON.parse(init.body), { dir: "X:\\picked-folder" });
+    return json(200, { ok: true, path: "X:\\picked-folder\\hana-sp-bridge.zip", fileName: "hana-sp-bridge.zip", size: 8, sha256: "a".repeat(64) });
+  });
+  await page.exportPlugin();
+  assert.equal(page.picks.length, 1);
+  assert.equal(page.picks[0][0].mode, "directory");
+  assert.equal(page.elements.get("bridge-download-status").dataset.fault, "false");
+  assert.match(page.elements.get("bridge-download-status").textContent, /已保存到 X:\\picked-folder\\hana-sp-bridge\.zip/);
+  assert.equal(page.elements.get("bridge-copy-path").hidden, false);
   assert.equal(page.downloads.length, 0);
   assert.equal(page.blobs.length, 0);
-  assert.equal(page.body.children.length, 0);
-  assert.match(page.elements.get("bridge-download-status").textContent, /已打开.*卡片.*还没有保存文件/);
-  assert.doesNotMatch(page.elements.get("bridge-download-status").textContent, /已发起下载|已安装|已保存/);
-  assert.equal(page.elements.get("bridge-download").disabled, false);
-  assert.doesNotMatch(source, /resources\.saveFile\(|api\.url\(|createObjectURL|link\.click/);
+  assert.doesNotMatch(source, /cards\.open|resources\.saveFile\(|createObjectURL|link\.click/);
   assert.ok(html.includes("app/resources.write"));
 });
 
-for (const [name, cardOpen] of [
-  ["权限拒绝", async () => { throw Object.assign(new Error("Authorization SECRET_SENTINEL"), { code: "CAPABILITY_DENIED" }); }],
-  ["超时", async () => { throw Object.assign(new Error("SECRET_SENTINEL"), { code: "TIMEOUT" }); }],
-  ["空回执", async () => null],
-  ["无卡片ID", async () => ({ existing: false, detached: false })],
-  ["无实例状态", async () => ({ cardInstanceId: "fixture" })],
+test("取消文件夹选择不写文件，也不假报保存", async () => {
+  const page = await openPage(healthyDiagnosis, { pick: async () => ({ resources: [] }) });
+  await page.exportPlugin();
+  assert.equal(page.calls.filter(({ path }) => path === "/bridge/export").length, 0);
+  assert.match(page.elements.get("bridge-download-status").textContent, /已取消.*没有保存/);
+  assert.equal(page.elements.get("bridge-copy-path").hidden, true);
+});
+
+for (const [name, fetchImpl, expected] of [
+  ["写文件失败", () => json(500, { ok: false, error: "写不了扩展包：EACCES" }), /没有保存.*EACCES/],
+  ["写权限被拒绝", () => json(500, { ok: false, error: "Denied", code: "CAPABILITY_DENIED" }), /没有保存.*app\/resources\.write/],
 ]) {
-  test(`打开卡片${name}不假报保存，也不回退到受限下载`, async () => {
-    const page = await openPage(healthyDiagnosis, { cardOpen });
-    await page.downloadPlugin();
-    assert.equal(page.downloads.length, 0);
-    assert.equal(page.cardOpens.length, 1);
-    assert.deepEqual(page.calls.map(({ path }) => path), ["/diagnose", "/bridge/setup"]);
+  test(`${name}如实提示，不清成已保存`, async () => {
+    const page = await openPage((path) => {
+      assert.equal(path, "/bridge/export");
+      return fetchImpl();
+    });
+    await page.exportPlugin();
     assert.equal(page.elements.get("bridge-download-status").dataset.fault, "true");
-    assert.match(page.elements.get("bridge-download-status").textContent, /没能确认.*没有保存文件.*卡片中心/);
-    assert.doesNotMatch(page.elements.get("bridge-download-status").textContent, /SECRET_SENTINEL|已发起下载|已保存/);
+    assert.match(page.elements.get("bridge-download-status").textContent, expected);
+    assert.doesNotMatch(page.elements.get("bridge-download-status").textContent, /已保存到/);
+    assert.equal(page.elements.get("bridge-copy-path").hidden, true);
     assert.equal(page.elements.get("bridge-download").disabled, false);
   });
 }
 
-test("保存卡已打开或已拆窗仍使用宿主定位回执，不创建业务实例键", async () => {
-  const page = await openPage(healthyDiagnosis, { cardOpen: async () => ({ cardInstanceId: "fixture", existing: true, detached: true }) });
-  await page.downloadPlugin();
-  assert.deepEqual(page.cardOpens, [["companion-download"]]);
-  assert.equal(page.elements.get("bridge-download-status").dataset.fault, "false");
-  assert.match(page.elements.get("bridge-download-status").textContent, /已打开/);
-});
-
-test("连续点击只发起一次开卡请求，等待期间禁用按钮", async () => {
-  let resolveOpen;
-  const page = await openPage(healthyDiagnosis, { cardOpen: () => new Promise((resolve) => { resolveOpen = resolve; }) });
-  const pending = page.downloadPlugin();
+test("连续点击只发起一次选择，等待期间禁用按钮", async () => {
+  let resolvePick;
+  const page = await openPage(healthyDiagnosis, {
+    pick: () => new Promise((resolve) => { resolvePick = resolve; }),
+  });
+  const pending = page.exportPlugin();
   assert.equal(page.elements.get("bridge-download").disabled, true);
-  await page.downloadPlugin();
-  assert.equal(page.cardOpens.length, 1);
-  resolveOpen({ cardInstanceId: "fixture", existing: false, detached: false });
+  await page.exportPlugin();
+  assert.equal(page.picks.length, 1);
+  resolvePick({ resources: [] });
   await pending;
   assert.equal(page.elements.get("bridge-download").disabled, false);
 });
+
+test("保存后复制完整路径，便于粘到 SP 的文件选择框", async () => {
+  const page = await openPage((path) => {
+    assert.equal(path, "/bridge/export");
+    return json(200, { ok: true, path: "X:\\picked-folder\\hana-sp-bridge.zip" });
+  });
+  await page.exportPlugin();
+  await page.copyPluginPath();
+  assert.deepEqual(page.clipboardWrites, ["X:\\picked-folder\\hana-sp-bridge.zip"]);
+  assert.match(page.elements.get("bridge-download-status").textContent, /路径已复制/);
+});
+
 
 async function diagnosticReport(fetchImpl) {
   return diagnose({
